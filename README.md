@@ -7,8 +7,10 @@ Prerequisites:
 
 Usage:
 
-`./main.py -i [input_file] -o [output_dir] [--fix-scores]`
-`./main.py -u [url] -o [output_dir] [--fix-scores]`
+- `./main.py -i [input_file] -o [output_dir] [--fix-scores]`
+- `./main.py -u [url] -o [output_dir] [--fix-scores]`
+
+Parameters description:
 
 - You need to specify exactly one of `-i`, `-u`. If `-u` is set, it will download a single log `[url]`. If `-i` is set, it will download all logs contained in file `[input_file]`, one url at a line.
 - Parameter `-o` is a directory where the logs are downloaded to. First XML logs are downloaded to `[output_dir]/xml`, then they are converted by mjlog2json to `[output_dir]/json`.
