@@ -1,5 +1,5 @@
 #!./venv/bin/python3
-
+import json
 import logging
 import os
 import subprocess
@@ -17,6 +17,7 @@ def parse_args():
     arg_parser.add_argument("-u", "--url")
     arg_parser.add_argument("-o", "--output-dir")
     arg_parser.add_argument("-t", "--type", choices=["xml", "json"])
+    arg_parser.add_argument("--fix-scores", action="store_true")
     return arg_parser.parse_args()
 
 
@@ -115,6 +116,61 @@ def convert_xml_to_json(log_id: str, output_dir: str):
     logging.info("Conversion finished with code %d", result.returncode)
 
 
+def fix_scores_array(scores: list[int], start_score: int):
+    assert len(scores) == 4
+    logging.info("Scores before: %s", scores)
+    for i in range(4):
+        scores[i] -= start_score - 25000
+    # TODO: improve the algorithm
+    while True:
+        # logging.info("Scores on another iteration: %s", scores)
+        negative_scores = [x for x in scores if x < 0]
+        if len(negative_scores) == 0:
+            break
+        elif len(negative_scores) == 1:
+            to_sub = -negative_scores[0]
+            while to_sub % 3 != 0:
+                to_sub += 100
+            for i in range(4):
+                if scores[i] >= 0:
+                    scores[i] -= to_sub // 3
+                else:
+                    scores[i] += to_sub
+        elif len(negative_scores) == 2:
+            to_sub = -min(negative_scores)
+            for i in range(4):
+                if scores[i] >= 0:
+                    scores[i] -= to_sub
+                else:
+                    scores[i] += to_sub
+        elif len(negative_scores) == 3:
+            to_sub = -min(negative_scores)
+            for i in range(4):
+                if scores[i] >= 0:
+                    scores[i] -= to_sub * 3
+                else:
+                    scores[i] += to_sub
+    logging.info("Scores after: %s", scores)
+    for i in range(4):
+        assert scores[i] >= 0
+        assert scores[i] % 100 == 0
+
+
+def fix_scores_in_json_log(log_id: str, output_dir: str, start_score: int):
+    log_file = os.path.join(output_dir, "json", f"{log_id}.json")
+    with open(log_file, "r") as f:
+        json_log = json.load(f)
+    logging.info("Loaded json log from file %s", log_file)
+
+    hands = json_log["log"]
+    for hand in hands:
+        fix_scores_array(scores=hand[1], start_score=start_score)
+
+    with open(log_file, "w") as f:
+        json.dump(json_log, f)
+    logging.info("Scores fixed in json log file %s", log_file)
+
+
 def main():
     logging.basicConfig(level=0)
     args = parse_args()
@@ -130,9 +186,14 @@ def main():
     os.makedirs(os.path.join(output_dir, "json"), exist_ok=True)
     logging.info("Use output dir: %s", output_dir)
 
+    fix_scores: bool = args.fix_scores
+    logging.info("Fix scores: %s", fix_scores)
+
     for url in urls:
         log_id = download_one_url_to_xml(url=url, output_dir=output_dir)
         convert_xml_to_json(log_id=log_id, output_dir=output_dir)
+        if fix_scores:
+            fix_scores_in_json_log(log_id=log_id, output_dir=output_dir, start_score=30000)
     logging.info("Finished script")
 
 
