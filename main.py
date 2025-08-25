@@ -13,6 +13,7 @@ def parse_args():
     arg_parser.add_argument("-i", "--input-file")
     arg_parser.add_argument("-u", "--url")
     arg_parser.add_argument("-o", "--output-dir")
+    arg_parser.add_argument("-t", "--type", choices=["xml", "json"])
     return arg_parser.parse_args()
 
 
@@ -56,7 +57,7 @@ def get_log_id(url: str) -> str:
     return log_id
 
 
-def download_one_url(url: str, output_dir: str):
+def download_one_url(url: str, output_dir: str, log_type: str):
     logging.info("Downloading url %s", url)
 
     try:
@@ -70,13 +71,15 @@ def download_one_url(url: str, output_dir: str):
     logging.info("Extracted log id from url: %s", log_id)
 
     try:
-        response = requests.get(
-            f"https://tenhou.net/5/mjlog2json.cgi?{log_id}",
-            headers={
-                "Referer": f"https://tenhou.net/6/?log={log_id}",
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0",
-            },
-        )
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0",
+        }
+        if log_type == "json":
+            download_url = f"https://tenhou.net/5/mjlog2json.cgi?{log_id}"
+            headers["Referer"] = f"https://tenhou.net/6/?log={log_id}"
+        else:
+            download_url = f"https://tenhou.net/0/log/?{log_id}"
+        response = requests.get(download_url, headers=headers)
         log_content: str = response.text
     except Exception as e:
         logging.error("Cannot download log from tenhou: %s", e)
@@ -85,7 +88,7 @@ def download_one_url(url: str, output_dir: str):
     logging.info("Log content length: %d", len(log_content))
     logging.info("Log content: '%s..........%s'", log_content[:30], log_content[-30:])
 
-    output_file = os.path.join(output_dir, f"{log_id}.json")
+    output_file = os.path.join(output_dir, log_type, f"{log_id}.{log_type}")
     with open(output_file, "w") as f:
         f.write(log_content)
     logging.info("Log content written to file %s", output_file)
@@ -103,10 +106,16 @@ def main():
 
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-    logging.info("Use output dif: %s", output_dir)
+    logging.info("Use output dir: %s", output_dir)
+
+    log_type: str = args.type
+    logging.info("Log type: %s", log_type)
+    output_dir_with_type = os.path.join(output_dir, log_type)
+    if not os.path.exists(output_dir_with_type):
+        os.mkdir(output_dir_with_type)
 
     for url in urls:
-        download_one_url(url=url, output_dir=output_dir)
+        download_one_url(url=url, output_dir=output_dir, log_type=log_type)
     logging.info("Finished script")
 
 
