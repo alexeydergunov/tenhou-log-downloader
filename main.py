@@ -170,7 +170,7 @@ def fix_scores_in_json_log(log_id: str, output_dir: str, start_score: int):
         fix_scores_array(scores=hand[1], start_score=start_score)
 
     with open(log_file, "w") as f:
-        json.dump(json_log, f)
+        json.dump(json_log, f, separators=(",", ":"), ensure_ascii=False)
     logging.info("Scores fixed in json log file %s", log_file)
 
 
