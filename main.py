@@ -2,10 +2,13 @@
 
 import logging
 import os
+import subprocess
 from argparse import ArgumentParser
 from typing import Optional
 
 import requests
+
+MJLOG2JSON_BINARY_PATH = "../mjlog2json/target/release/mjlog2json"
 
 
 def parse_args():
@@ -57,7 +60,7 @@ def get_log_id(url: str) -> str:
     return log_id
 
 
-def download_one_url(url: str, output_dir: str, log_type: str):
+def download_one_url_to_xml(url: str, output_dir: str) -> str:
     logging.info("Downloading url %s", url)
 
     try:
@@ -66,32 +69,50 @@ def download_one_url(url: str, output_dir: str, log_type: str):
         logging.error("Cannot extract log id from url: %s", e)
         logging.error("Url format must be 'https://tenhou.net/0/?log=2025010203gm-0029-0000-0123abcd&tw=0'")
         logging.error("Skipping url %s", url)
-        return
+        raise e
 
     logging.info("Extracted log id from url: %s", log_id)
+
+    output_file = os.path.join(output_dir, "xml", f"{log_id}.xml")
+    if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+        logging.info("Output file %s already exists, don't download", output_file)
+        return log_id
 
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0",
         }
-        if log_type == "json":
-            download_url = f"https://tenhou.net/5/mjlog2json.cgi?{log_id}"
-            headers["Referer"] = f"https://tenhou.net/6/?log={log_id}"
-        else:
-            download_url = f"https://tenhou.net/0/log/?{log_id}"
+        download_url = f"https://tenhou.net/0/log/?{log_id}"
+        # JSON logs can be directly downloaded with these two lines:
+        # download_url = f"https://tenhou.net/5/mjlog2json.cgi?{log_id}"
+        # headers["Referer"] = f"https://tenhou.net/6/?log={log_id}"
+        # but it doesn't work for custom lobbies
+        # so we download XML and then convert to JSON with the 3rd party utility
         response = requests.get(download_url, headers=headers)
         log_content: str = response.text
     except Exception as e:
         logging.error("Cannot download log from tenhou: %s", e)
-        return
+        raise e
 
     logging.info("Log content length: %d", len(log_content))
     logging.info("Log content: '%s..........%s'", log_content[:30], log_content[-30:])
 
-    output_file = os.path.join(output_dir, log_type, f"{log_id}.{log_type}")
     with open(output_file, "w") as f:
         f.write(log_content)
     logging.info("Log content written to file %s", output_file)
+    return log_id
+
+
+def convert_xml_to_json(log_id: str, output_dir: str):
+    input_file = os.path.join(output_dir, "xml", f"{log_id}.xml")
+    output_file = os.path.join(output_dir, "json", f"{log_id}.json")
+    logging.info("Converting xml log %s to json log %s", input_file, output_file)
+    result = subprocess.run([
+        os.path.abspath(MJLOG2JSON_BINARY_PATH),
+        os.path.abspath(input_file),
+        "-o", os.path.abspath(output_file),
+    ])
+    logging.info("Conversion finished with code %d", result.returncode)
 
 
 def main():
@@ -104,18 +125,14 @@ def main():
 
     urls: list[str] = get_url_list(args=args)
 
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "xml"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "json"), exist_ok=True)
     logging.info("Use output dir: %s", output_dir)
 
-    log_type: str = args.type
-    logging.info("Log type: %s", log_type)
-    output_dir_with_type = os.path.join(output_dir, log_type)
-    if not os.path.exists(output_dir_with_type):
-        os.mkdir(output_dir_with_type)
-
     for url in urls:
-        download_one_url(url=url, output_dir=output_dir, log_type=log_type)
+        log_id = download_one_url_to_xml(url=url, output_dir=output_dir)
+        convert_xml_to_json(log_id=log_id, output_dir=output_dir)
     logging.info("Finished script")
 
 
