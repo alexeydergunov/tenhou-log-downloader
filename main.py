@@ -54,8 +54,8 @@ def get_log_id(url: str) -> str:
     if not url.startswith("https://tenhou.net/0/?log="):
         raise Exception("Wrong url format, must be a tenhou link with log parameter")
 
-    if url[-5:-1] == "&tw=" and url[-1].isdigit():
-        url = url[:-5]
+    if url[-5:-1] == "&tw=" and not url[-1].isdigit():
+        raise Exception("If 'tw=' is specified, last character must be a digit")
 
     log_id = url[26:]
     return log_id
@@ -83,10 +83,13 @@ def download_one_url_to_xml(url: str, output_dir: str) -> str:
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0",
         }
-        download_url = f"https://tenhou.net/0/log/?{log_id}"
+        log_id_without_player = log_id
+        if log_id_without_player[-5:-1] == "&tw=" and log_id_without_player[-1].isdigit():
+            log_id_without_player = log_id_without_player[:-5]
+        download_url = f"https://tenhou.net/0/log/?{log_id_without_player}"
         # JSON logs can be directly downloaded with these two lines:
-        # download_url = f"https://tenhou.net/5/mjlog2json.cgi?{log_id}"
-        # headers["Referer"] = f"https://tenhou.net/6/?log={log_id}"
+        # download_url = f"https://tenhou.net/5/mjlog2json.cgi?{log_id_without_player}"
+        # headers["Referer"] = f"https://tenhou.net/6/?log={log_id_without_player}"
         # but it doesn't work for custom lobbies
         # so we download XML and then convert to JSON with the 3rd party utility
         response = requests.get(download_url, headers=headers)
