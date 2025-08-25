@@ -124,36 +124,33 @@ def fix_scores_array(scores: list[int], start_score: int):
     logging.info("Scores before: %s", scores)
     for i in range(4):
         scores[i] -= start_score - 25000
-    # TODO: improve the algorithm
+    sum_before = sum(scores)
     while True:
         # logging.info("Scores on another iteration: %s", scores)
-        negative_scores = [x for x in scores if x < 0]
-        if len(negative_scores) == 0:
+        # '< 1000' so that everyone can declare riichi
+        low_scores = [x for x in scores if x < 1000]
+        if len(low_scores) == 0:
             break
-        elif len(negative_scores) == 1:
-            to_sub = -negative_scores[0]
-            while to_sub % 3 != 0:
-                to_sub += 100
+        elif len(low_scores) == 1:
             for i in range(4):
-                if scores[i] >= 0:
-                    scores[i] -= to_sub // 3
+                if scores[i] >= 1000:
+                    scores[i] -= 100
                 else:
-                    scores[i] += to_sub
-        elif len(negative_scores) == 2:
-            to_sub = -min(negative_scores)
+                    scores[i] += 300
+        elif len(low_scores) == 2:
             for i in range(4):
-                if scores[i] >= 0:
-                    scores[i] -= to_sub
+                if scores[i] >= 1000:
+                    scores[i] -= 100
                 else:
-                    scores[i] += to_sub
-        elif len(negative_scores) == 3:
-            to_sub = -min(negative_scores)
+                    scores[i] += 100
+        elif len(low_scores) == 3:
             for i in range(4):
-                if scores[i] >= 0:
-                    scores[i] -= to_sub * 3
+                if scores[i] >= 1000:
+                    scores[i] -= 300
                 else:
-                    scores[i] += to_sub
+                    scores[i] += 100
     logging.info("Scores after: %s", scores)
+    assert sum(scores) == sum_before
     for i in range(4):
         assert scores[i] >= 0
         assert scores[i] % 100 == 0
