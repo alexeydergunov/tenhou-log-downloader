@@ -10,6 +10,12 @@ Usage:
 - `./main.py -i [input_file] -o [output_dir] [--fix-scores]`
 - `./main.py -u [url] -o [output_dir] [--fix-scores]`
 
+You can skip venv creation and use system Python. In this case:
+
+- use `pip3` instead of `./venv/bin/pip3`
+- use `python3 main.py` instead of `./main.py`
+- on Windows, it could be `pip` and `python` instead of `pip3` and `python3`
+
 Parameters description:
 
 - You need to specify exactly one of `-i`, `-u`. If `-u` is set, it will download a single log `[url]`. If `-i` is set, it will download all logs contained in file `[input_file]`, one url at a line.
