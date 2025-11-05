@@ -16,7 +16,7 @@ def parse_args():
     arg_parser.add_argument("-i", "--input-file")
     arg_parser.add_argument("-u", "--url")
     arg_parser.add_argument("-o", "--output-dir")
-    arg_parser.add_argument("-t", "--type", choices=["xml", "json"])
+    arg_parser.add_argument("--skip-xml", action="store_true")
     arg_parser.add_argument("--fix-scores", action="store_true")
     return arg_parser.parse_args()
 
@@ -61,23 +61,46 @@ def get_log_id(url: str) -> str:
     return log_id
 
 
-def download_one_url_to_xml(url: str, output_dir: str) -> str:
-    logging.info("Downloading url %s", url)
+def download_one_url_to_json(log_id: str, output_dir: str):
+    log_parts = log_id.split("-")
+    if len(log_parts) != 4:
+        raise Exception("Wrong log id format, must be '2025010203gm-0029-0000-0123abcd&tw=0'")
+    if log_parts[2] != "0000":
+        raise Exception("Not a ranked match (lobby 0000), can't download it directly as JSON")
+
+    output_file = os.path.join(output_dir, "json", f"{log_id}.json")
+    if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+        logging.info("Output file %s already exists, don't download", output_file)
+        return
 
     try:
-        log_id = get_log_id(url=url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/110.0",
+        }
+        log_id_without_player = log_id
+        if log_id_without_player[-5:-1] == "&tw=" and log_id_without_player[-1].isdigit():
+            log_id_without_player = log_id_without_player[:-5]
+        download_url = f"https://tenhou.net/5/mjlog2json.cgi?{log_id_without_player}"
+        headers["Referer"] = f"https://tenhou.net/6/?log={log_id_without_player}"
+        response = requests.get(download_url, headers=headers)
+        log_content: str = response.text
     except Exception as e:
-        logging.error("Cannot extract log id from url: %s", e)
-        logging.error("Url format must be 'https://tenhou.net/0/?log=2025010203gm-0029-0000-0123abcd&tw=0'")
-        logging.error("Skipping url %s", url)
+        logging.error("Cannot download log from tenhou: %s", e)
         raise e
 
-    logging.info("Extracted log id from url: %s", log_id)
+    logging.info("Log content length: %d", len(log_content))
+    logging.info("Log content: '%s..........%s'", log_content[:30], log_content[-30:])
 
+    with open(output_file, "w") as f:
+        f.write(log_content)
+    logging.info("Log content written to file %s", output_file)
+
+
+def download_one_url_to_xml(log_id: str, output_dir: str):
     output_file = os.path.join(output_dir, "xml", f"{log_id}.xml")
     if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
         logging.info("Output file %s already exists, don't download", output_file)
-        return log_id
+        return
 
     try:
         headers = {
@@ -104,7 +127,6 @@ def download_one_url_to_xml(url: str, output_dir: str) -> str:
     with open(output_file, "w") as f:
         f.write(log_content)
     logging.info("Log content written to file %s", output_file)
-    return log_id
 
 
 def convert_xml_to_json(log_id: str, output_dir: str):
@@ -187,13 +209,28 @@ def main():
     logging.info("Use output dir: %s", output_dir)
 
     fix_scores: bool = args.fix_scores
+    skip_xml: bool = args.skip_xml
     logging.info("Fix scores: %s", fix_scores)
+    logging.info("Skip XML: %s", skip_xml)
 
     for url in urls:
-        log_id = download_one_url_to_xml(url=url, output_dir=output_dir)
-        convert_xml_to_json(log_id=log_id, output_dir=output_dir)
-        if fix_scores:
-            fix_scores_in_json_log(log_id=log_id, output_dir=output_dir, start_score=30000)
+        logging.info("Downloading url %s", url)
+        try:
+            log_id = get_log_id(url=url)
+        except Exception as e:
+            logging.error("Cannot extract log id from url: %s", e)
+            logging.error("Url format must be 'https://tenhou.net/0/?log=2025010203gm-0029-0000-0123abcd&tw=0'")
+            logging.error("Skipping url %s", url)
+            raise e
+        logging.info("Extracted log id from url: %s", log_id)
+
+        if skip_xml:
+            download_one_url_to_json(log_id=log_id, output_dir=output_dir)
+        else:
+            download_one_url_to_xml(log_id=log_id, output_dir=output_dir)
+            convert_xml_to_json(log_id=log_id, output_dir=output_dir)
+            if fix_scores:
+                fix_scores_in_json_log(log_id=log_id, output_dir=output_dir, start_score=30000)
     logging.info("Finished script")
 
 
